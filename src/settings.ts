@@ -42,7 +42,7 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Inline trigger')
-			.setDesc('Type this in the editor to open the event range picker. Default: )).')
+			.setDesc('Type this in the editor to open the event range picker.')
 			.addText(text => text
 				.setPlaceholder('))')
 				.setValue(this.plugin.settings.suggestTrigger)
