@@ -1,3 +1,6 @@
+// todo
+// add configure command that updates the user's setting preferences, in the same way done in date-list 
+
 import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, MarkdownView, MarkdownFileInfo, Modal, Notice, Plugin, TFile, moment as _m } from 'obsidian';
 import { execFile } from 'child_process';
 import { existsSync } from 'fs';
@@ -167,7 +170,7 @@ function buildPresets(): RangePreset[] {
 }
 
 // -------------------------------------------------------------------
-// Inline editor suggest (@ev trigger)
+// Inline editor suggest (')) trigger)
 // -------------------------------------------------------------------
 
 class CalendarEventsSuggest extends EditorSuggest<RangePreset> {

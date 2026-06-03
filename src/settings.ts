@@ -17,7 +17,7 @@ export interface CalendarEventsSettings {
 }
 
 export const DEFAULT_SETTINGS: CalendarEventsSettings = {
-	suggestTrigger: '@ev',
+	suggestTrigger: '))',
 	excludedCalendars: '',
 	timeoutMs: 20000,
 	dateFormat: 'ddd MMM D',
@@ -42,9 +42,9 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Inline trigger')
-			.setDesc('Type this in the editor to open the event range picker. Default: @ev.')
+			.setDesc('Type this in the editor to open the event range picker. Default: )).')
 			.addText(text => text
-				.setPlaceholder('@ev')
+				.setPlaceholder('))')
 				.setValue(this.plugin.settings.suggestTrigger)
 				.onChange(async (value) => {
 					this.plugin.settings.suggestTrigger = value;
