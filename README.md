@@ -90,3 +90,7 @@ If you like Calendar List, you might also like [Date List](https://github.com/lu
 ## Feedback and contributions
 
 Let me know if you have any feedback or suggestions!
+
+## License
+
+[0-BSD](LICENSE) — free to use, modify, and distribute.
