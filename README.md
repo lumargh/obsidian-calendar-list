@@ -83,6 +83,10 @@ Download the latest release directly from the [icalBuddy GitHub releases page](h
 
 The first time icalBuddy runs, macOS will ask for permission to access your Calendar. Allow it, and you're set. If you're not sure whether it's working, open Terminal and run `icalBuddy eventsToday` — you should see today's events listed.
 
+## Related plugins
+
+If you like Calendar List, you might also like [Date List](https://github.com/lumargh/obsidian-date-list) — a companion plugin for inserting single dates and formatted date lists with a live-preview wizard and inline autocomplete.
+
 ## Feedback and contributions
 
 Let me know if you have any feedback or suggestions!
