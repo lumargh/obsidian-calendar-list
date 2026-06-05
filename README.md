@@ -1,14 +1,14 @@
 # Calendar List
 
-An Obsidian plugin for pulling events from your macOS Calendar app and inserting them directly into your notes.
+An Obsidian plugin for pulling events from your macOS Calendar app and inserting them directly into your notes. This plugin is actively being developed, so create a GitHub issue if you have any trouble.
 
 ## Features
 
 Pick a date range — today, this week, next month, whatever — and the plugin fetches your calendar events and drops them into your note as a formatted list. Titles, dates, and times, in whatever format you like.
 
-### Inline `@ev` autosuggest
+### Inline `@))` autosuggest
 
-Type `@ev` (or your configured trigger) anywhere in a note to open a range picker inline. Five presets appear immediately — press **↵** or **⇥** to insert, **↑↓** to navigate.
+Type `@))` (or your configured trigger) anywhere in a note to open a range picker inline. Five presets appear immediately — press **↵** or **⇥** to insert, **↑↓** to navigate.
 
 | Preset | What you get |
 |---|---|
@@ -51,15 +51,6 @@ A date format guide with common tokens is included at the bottom of the settings
 Large or slow calendars (Birthdays, Siri Suggestions, subscription calendars) can make fetches sluggish. Add them to the **Excluded calendars** list in settings to skip them entirely. You can also increase the timeout if you have remote calendars that are just slow.
 
 ---
-
-## Keyboard navigation
-
-All screens support full keyboard control:
-
-- **↑ / ↓** — move between options
-- **1, 2, 3…** — jump to option by number
-- **Enter** — confirm the focused option
-- **Escape / ←** — go back
 
 ## Requirements
 
