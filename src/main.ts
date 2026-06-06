@@ -54,9 +54,9 @@ function parseIcalBuddyOutput(stdout: string): CalEvent[] {
 		let base: MomentInstance;
 		const offset = wordOffset[datePart.toLowerCase()];
 		if (offset !== undefined) {
-			base = moment().startOf('day').add(offset, 'days') as MomentInstance;
+			base = moment().startOf('day').add(offset, 'days');
 		} else {
-			base = moment(datePart, 'YYYY-MM-DD') as MomentInstance;
+			base = moment(datePart, 'YYYY-MM-DD');
 		}
 		if (!base.isValid()) { title = null; dateTimeLine = null; return; }
 
@@ -91,7 +91,7 @@ function parseIcalBuddyOutput(stdout: string): CalEvent[] {
 	return events;
 }
 
-const ANSI_RE = /\[[0-9;]*m/g;
+const ANSI_RE = /\x1b\[[0-9;]*m/g;
 
 async function fetchEvents(start: Date, end: Date, excluded: string[], timeoutMs: number): Promise<CalEvent[]> {
 	const buddy = findIcalBuddy();

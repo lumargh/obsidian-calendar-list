@@ -1,6 +1,7 @@
-import { App, PluginSettingTab, Setting, moment as _m } from 'obsidian';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
-const moment = _m as any;
+import { App, PluginSettingTab, Setting, moment as _moment } from 'obsidian';
+
+type MomentFn = (input?: string | Date | number) => { format(fmt: string): string };
+const moment = _moment as unknown as MomentFn;
 import type CalendarEventsPlugin from './main';
 
 export interface CalendarEventsSettings {
@@ -64,7 +65,7 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					});
 				text.inputEl.rows = 3;
-				text.inputEl.style.width = '100%';
+				text.inputEl.addClass('cal-events-settings-textarea');
 			});
 
 		new Setting(containerEl)
@@ -87,10 +88,8 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 			.setDesc('Format for the date portion')
 			.addText(text => {
 				text.inputEl.parentElement!.addClass('cal-events-settings-has-preview');
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
 				const preview = text.inputEl.parentElement!.createEl('div', {
 					cls: 'cal-events-settings-preview',
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 					text: this.plugin.settings.dateFormat ? moment().format(this.plugin.settings.dateFormat) : '',
 				});
 				text
@@ -98,7 +97,6 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.dateFormat)
 					.onChange(async (value) => {
 						this.plugin.settings.dateFormat = value;
-						// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 						preview.setText(value ? moment().format(value) : '');
 						await this.plugin.saveSettings();
 					});
@@ -122,7 +120,6 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 				text.inputEl.parentElement!.addClass('cal-events-settings-has-preview');
 				const preview = text.inputEl.parentElement!.createEl('div', {
 					cls: 'cal-events-settings-preview',
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 					text: this.plugin.settings.wikiLinksAlias ? moment().format(this.plugin.settings.wikiLinksAlias) : '',
 				});
 				text
@@ -130,7 +127,6 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.wikiLinksAlias)
 				.onChange(async (value) => {
 					this.plugin.settings.wikiLinksAlias = value;
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 					preview.setText(value ? moment().format(value) : '');
 					await this.plugin.saveSettings();
 				});
@@ -141,10 +137,8 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 				.setDesc('Format for the time portion (when applicable).')
 				.addText(text => {
 					text.inputEl.parentElement!.addClass('cal-events-settings-has-preview');
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
 					const preview = text.inputEl.parentElement!.createEl('div', {
 						cls: 'cal-events-settings-preview',
-						// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 						text: this.plugin.settings.timeFormat ? moment().format(this.plugin.settings.timeFormat) : '',
 					});
 					text
@@ -152,7 +146,6 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 						.setValue(this.plugin.settings.timeFormat)
 						.onChange(async (value) => {
 							this.plugin.settings.timeFormat = value;
-							// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 							preview.setText(value ? moment().format(value) : '');
 							await this.plugin.saveSettings();
 						});

@@ -101,6 +101,10 @@
 
 /* ── Settings ───────────────────────────────────────────────────── */
 
+.cal-events-settings-textarea {
+	width: 100%;
+}
+
 .cal-events-settings-has-preview {
 	flex-wrap: wrap;
 	gap: 4px;
