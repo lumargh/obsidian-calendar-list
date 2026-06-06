@@ -6,9 +6,16 @@ An Obsidian plugin for pulling events from your macOS Calendar app and inserting
 
 Pick a date range — today, this week, next month, whatever — and the plugin fetches your calendar events and drops them into your note as a formatted list. Titles, dates, and times, in whatever format you like.
 
-### Inline `@))` autosuggest
+For example, on the last day of the year, you might get something like: 
 
-Type `@))` (or your configured trigger) anywhere in a note to open a range picker inline. Five presets appear immediately — press **↵** or **⇥** to insert, **↑↓** to navigate.
+- New Year's Eve
+- 11:00 AM - Brunch with friends
+- 8:00 PM - Head out to the NYE party 
+
+
+### Inline `))` autosuggest
+
+Type `))` (or your configured trigger) anywhere in a note to open a range picker inline. Five presets appear immediately — press **↵** or **⇥** to insert, **↑↓** to navigate.
 
 | Preset | What you get |
 |---|---|
@@ -54,17 +61,25 @@ Large or slow calendars (Birthdays, Siri Suggestions, subscription calendars) ca
 
 ## Requirements
 
-**macOS only.** Calendar List reads your calendars through a command-line tool called [icalBuddy](https://hasseg.org/icalBuddy/), which talks to the same EventKit framework that Apple's own apps use. You'll need to install it once before the plugin will work.
+**macOS only.** Calendar List reads your calendars through a command-line tool called [icalBuddy](https://hasseg.org/icalBuddy/), which talks to the same EventKit framework that Apple's own apps use. You'll need to install it once before the plugin will work. 
 
 **Option 1 — Homebrew (recommended)**
 
-If you have [Homebrew](https://brew.sh), open Terminal and run:
+If you have [Homebrew](https://brew.sh), open Terminal and paste:
 
 ```
 brew install ical-buddy
 ```
 
-If you don't have Homebrew yet, it's a one-line install and well worth having — it's the standard package manager for macOS developer tools.
+**Note**: If you don't have Homebrew yet, it's a one-line install and well worth having. 
+
+Step 1: Open Terminal (in Applications, or use your spotlight search)
+
+Step 2: Copy and paste the following command into your Terminal and press Return or Enter
+
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
 
 **Option 2 — Direct download**
 
