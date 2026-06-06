@@ -45,10 +45,11 @@ function parseIcalBuddyOutput(stdout: string): CalEvent[] {
 
 		// Map prose date words to moment offsets
 		const wordOffset: Record<string, number> = { today: 0, tomorrow: 1, yesterday: -1 };
-		const atMatch  = raw.match(/^(\S+)\s+at\s+(\d{2}:\d{2})/);
-		const dayOnly  = raw.match(/^(\S+)$/);
+		const atMatch    = raw.match(/^(\S+)\s+at\s+(\d{1,2}:\d{2})/);
+		const rangeMatch = raw.match(/^(\S+)\s+-\s+\S/);
+		const dayOnly    = raw.match(/^(\S+)$/);
 
-		const datePart = (atMatch ?? dayOnly)?.[1] ?? '';
+		const datePart = (atMatch ?? rangeMatch ?? dayOnly)?.[1] ?? '';
 		const timePart = atMatch?.[2] ?? null;
 
 		let base: MomentInstance;
@@ -110,14 +111,21 @@ function formatEvents(events: CalEvent[], settings: CalendarEventsSettings): str
 	if (events.length === 0) return '(no events found)';
 	return events.map((e) => {
 		const m = moment(e.start);
-		const dateStr = m.format(settings.dateFormat || 'ddd MMM D');
-		const aliasStr = settings.wikiLinksAlias ? m.format(settings.wikiLinksAlias) : null;
-		const wrapped = settings.wikiLinks
-			? (aliasStr ? `[[${dateStr}|${aliasStr}]]` : `[[${dateStr}]]`)
-			: dateStr;
-		const sep = settings.timeSeparator || ' ';
-		const timeStr = e.allDay ? '' : sep + m.format(settings.timeFormat || 'HH:mm');
-		return `${settings.prefix}${wrapped}${timeStr}${settings.titleSeparator}${e.title}`;
+		let datePart = '';
+		if (settings.includeDate) {
+			const dateStr = m.format(settings.dateFormat || 'ddd MMM D');
+			const aliasStr = settings.wikiLinksAlias ? m.format(settings.wikiLinksAlias) : null;
+			datePart = settings.wikiLinks
+				? (aliasStr ? `[[${dateStr}|${aliasStr}]]` : `[[${dateStr}]]`)
+				: dateStr;
+		}
+		let timeStr = '';
+		if (!e.allDay) {
+			const formatted = m.format(settings.timeFormat || 'HH:mm');
+			timeStr = settings.includeDate ? (settings.timeSeparator || ' ') + formatted : formatted;
+		}
+		const titleSep = e.allDay ? '' : (settings.titleSeparator || ' ');
+		return `${settings.prefix}${datePart}${timeStr}${titleSep}${e.title}`;
 	}).join('\n');
 }
 
@@ -179,8 +187,7 @@ class CalendarEventsSuggest extends EditorSuggest<RangePreset> {
 	}
 
 	onTrigger(cursor: EditorPosition, editor: Editor, _file: TFile | null): EditorSuggestTriggerInfo | null {
-		const trigger = this.plugin.settings.suggestTrigger;
-		if (!trigger) return null;
+		const trigger = this.plugin.settings.suggestTrigger || '))';
 
 		const line = editor.getLine(cursor.line).slice(0, cursor.ch);
 		const idx = line.lastIndexOf(trigger);

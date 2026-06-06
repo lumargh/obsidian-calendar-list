@@ -8,6 +8,7 @@ export interface CalendarEventsSettings {
 	suggestTrigger: string;
 	excludedCalendars: string;
 	timeoutMs: number;
+	includeDate: boolean;
 	dateFormat: string;
 	timeFormat: string;
 	timeSeparator: string;
@@ -21,6 +22,7 @@ export const DEFAULT_SETTINGS: CalendarEventsSettings = {
 	suggestTrigger: '))',
 	excludedCalendars: '',
 	timeoutMs: 20000,
+	includeDate: true,
 	dateFormat: 'ddd MMM D',
 	timeFormat: 'HH:mm',
 	timeSeparator: ', ',
@@ -82,6 +84,17 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl).setName('Output format').setHeading();
+
+		new Setting(containerEl)
+			.setName('Include date')
+			.setDesc('Add the date to each event line. When off, only the time is shown for timed events.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.includeDate)
+				.onChange(async (value) => {
+					this.plugin.settings.includeDate = value;
+					await this.plugin.saveSettings();
+				})
+			);
 
 		new Setting(containerEl)
 			.setName('Date format')
@@ -155,7 +168,7 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 				.setName('Date–time separator')
 				.setDesc('Text between the date and time for timed events. Defaults to a space if left blank.')
 				.addText(text => text
-					.setPlaceholder(', ')
+					.setPlaceholder('e.g. `, `')
 					.setValue(this.plugin.settings.timeSeparator)
 					.onChange(async (value) => {
 						this.plugin.settings.timeSeparator = value;
@@ -165,9 +178,9 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 	
 		new Setting(containerEl)
 			.setName('Prefix')
-			.setDesc('Text prepended to each event line (e.g. - or - [ ] ).')
+			.setDesc('Text prepended to each event line.')
 			.addText(text => text
-				.setPlaceholder('- ')
+				.setPlaceholder('e.g. `-` or `- [ ] `')
 				.setValue(this.plugin.settings.prefix)
 				.onChange(async (value) => {
 					this.plugin.settings.prefix = value;
@@ -179,7 +192,7 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 			.setName('Title separator')
 			.setDesc('Text between the date/time and the event title.')
 			.addText(text => text
-				.setPlaceholder(' - ')
+				.setPlaceholder('e.g. `- `')
 				.setValue(this.plugin.settings.titleSeparator)
 				.onChange(async (value) => {
 					this.plugin.settings.titleSeparator = value;

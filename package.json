@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-calendar-list",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"description": "Insert macOS Calendar events into Obsidian notes.",
 	"main": "main.js",
 	"type": "module",
