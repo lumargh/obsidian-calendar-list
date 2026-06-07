@@ -1,6 +1,8 @@
 # Calendar List
 
-An Obsidian plugin for pulling events from your macOS Calendar app and inserting them directly into your notes. This plugin is actively being developed, so create a GitHub issue if you have any trouble.
+An Obsidian plugin for pulling events from your macOS Calendar app and inserting them directly into your notes. Your agenda is pasted as plain text, with the dates formatted as you want them.
+
+This plugin is actively being developed, so create a GitHub issue if you have any trouble.
 
 ## Features
 
@@ -61,7 +63,7 @@ Large or slow calendars (Birthdays, Siri Suggestions, subscription calendars) ca
 
 ## Requirements
 
-**macOS only.** Calendar List reads your calendars through a command-line tool called [icalBuddy](https://hasseg.org/icalBuddy/), which talks to the same EventKit framework that Apple's own apps use. You'll need to install it once before the plugin will work. 
+**macOS only.** Calendar List reads your calendars through a free command-line tool called [icalBuddy](https://hasseg.org/icalBuddy/), which talks to the same EventKit framework that Apple's own apps use. You'll need to install it once before the plugin will work. 
 
 **Option 1 — Homebrew (recommended)**
 
@@ -91,12 +93,8 @@ The first time icalBuddy runs, macOS will ask for permission to access your Cale
 
 ## Related plugins
 
-If you like Calendar List, you might also like [Date List](https://github.com/lumargh/obsidian-date-list) — a companion plugin for inserting single dates and formatted date lists with a live-preview wizard and inline autocomplete.
+If you like Calendar List, you might also like [Date List](https://github.com/lumargh/obsidian-date-list) — a companion plugin for inserting single dates and formatted date lists with a live-preview wizard and inline autocomplete. I also made [File Filter](https://github.com/lumargh/obsidian-file-filter), which is a great plugin that lets you filter your notes by a search term. 
 
 ## Feedback and contributions
 
 Let me know if you have any feedback or suggestions!
-
-## License
-
-[0-BSD](LICENSE) — free to use, modify, and distribute.
