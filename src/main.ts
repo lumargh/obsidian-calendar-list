@@ -1,4 +1,17 @@
 // todo
+// settings: allow user to specify the first day of the week (mon-sun). sunday default first day. 'this week' and 'next week' should respect user selection. if user first day = monday, 'this week' = mon-sun. if first day = fri, 'this week' = fri-thu.
+// settings: create a new group for the prefix and the title separator called 'List format'. 
+// settings: create a new header above the date format guide "Output preview" which returns a sample list with template language that follows all of the format settings the user has selected.
+// settings: put the date format and the time format live previews below the input field instead of to the right of it. 
+// settings: disable all date formatting inputs when 'include date' is deselected ( date format, wiki links, alias format, date time separator). 
+// settings: add some space between the date format and the time format options 
+// set default date format to ISO instead of 'ddd MMM D'
+// insert calendar events command: custom date range > include the events from the end date (i.e. 2026-06-07 to 2026-06-09 should include events from jun 7,8, and 9)
+// insert calendar events command: Modal keyboard nav> allow keyboard selection of option 6 'custom range'
+// hotkey: add 'custom range' option to the bottom of the preset list. this option opens the calendar list modal for the custom range option. 
+// custom range bug: insert invalid start date, click 'fetch events' > type valid start date: DO NOT insert list immediately. allow user to modify either the start date or end date. in other words, if user adds invalid start date and/or end date and clicks fetch events, cancel the fetch events action until they click it again.
+// settings: add 'include time' toggle, default on, above 'time format'. when toggled off, events with time specified do not return the time component.
+// after inserting a calendar list, have cursor be at the end of the list (not the beginning)
 // add configure command that updates the user's setting preferences, in the same way done in date-list 
 
 import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, MarkdownView, MarkdownFileInfo, Modal, Notice, Plugin, TFile, moment as _m } from 'obsidian';
@@ -124,7 +137,8 @@ function formatEvents(events: CalEvent[], settings: CalendarEventsSettings): str
 			const formatted = m.format(settings.timeFormat || 'HH:mm');
 			timeStr = settings.includeDate ? (settings.timeSeparator || ' ') + formatted : formatted;
 		}
-		const titleSep = e.allDay ? '' : (settings.titleSeparator || ' ');
+		const hasPrecedingContent = datePart !== '' || timeStr !== '';
+		const titleSep = hasPrecedingContent ? (settings.titleSeparator || ' ') : '';
 		return `${settings.prefix}${datePart}${timeStr}${titleSep}${e.title}`;
 	}).join('\n');
 }
@@ -371,7 +385,7 @@ export default class CalendarEventsPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'insert',
-			name: 'Insert calendar events',
+			name: 'Insert events',
 			editorCallback: async (editor: Editor, _ctx: MarkdownView | MarkdownFileInfo) => {
 				const range = await new Promise<{ start: Date; end: Date } | typeof BACK>((resolve) =>
 					new RangeModal(this.app, resolve).open()

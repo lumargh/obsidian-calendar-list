@@ -1,3 +1,5 @@
+// TODO
+// - put the alias format preview on the same line as the input (similar to date format and time format. make sure it still wraps properly on mobile.)
 import { App, PluginSettingTab, Setting, moment as _moment } from 'obsidian';
 
 type MomentFn = (input?: string | Date | number) => { format(fmt: string): string };
@@ -41,7 +43,7 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		new Setting(containerEl).setName('Calendar').setHeading();
+		new Setting(containerEl).setName('Calendar List Settings').setHeading();
 
 		new Setting(containerEl)
 			.setName('Inline trigger')
@@ -83,7 +85,7 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 				})
 			);
 
-		new Setting(containerEl).setName('Output format').setHeading();
+		new Setting(containerEl).setName('Date & time format').setHeading();
 
 		new Setting(containerEl)
 			.setName('Include date')
@@ -98,7 +100,7 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Date format')
-			.setDesc('Format for the date portion')
+			.setDesc('Format the date portion')
 			.addText(text => {
 				text.inputEl.parentElement!.addClass('cal-events-settings-has-preview');
 				const preview = text.inputEl.parentElement!.createEl('div', {
@@ -116,7 +118,7 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 			});
 
 			new Setting(containerEl)
-			.setName('Wiki links')
+			.setName('Wikilinks')
 			.setDesc('Wrap the date in [[ ]] to link to a daily note.')
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.wikiLinks)
@@ -127,8 +129,8 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 			);
 			
 			new Setting(containerEl)
-			.setName('Wiki link alias format')
-			.setDesc('Display text inside the wiki link. Leave blank for no alias: [[date]]. With a value: [[date|alias]].')
+			.setName('Wikilink alias format')
+			.setDesc('Display text inside the wikilink. Leave blank for no alias: [[date]]. With a value: [[date|alias]].')
 			.addText(text => {
 				text.inputEl.parentElement!.addClass('cal-events-settings-has-preview');
 				const preview = text.inputEl.parentElement!.createEl('div', {
