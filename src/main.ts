@@ -1,18 +1,6 @@
-// todo
-// settings: allow user to specify the first day of the week (mon-sun). sunday default first day. 'this week' and 'next week' should respect user selection. if user first day = monday, 'this week' = mon-sun. if first day = fri, 'this week' = fri-thu.
-// settings: create a new group for the prefix and the title separator called 'List format'. 
-// settings: create a new header above the date format guide "Output preview" which returns a sample list with template language that follows all of the format settings the user has selected.
-// settings: put the date format and the time format live previews below the input field instead of to the right of it. 
-// settings: disable all date formatting inputs when 'include date' is deselected ( date format, wiki links, alias format, date time separator). 
-// settings: add some space between the date format and the time format options 
-// set default date format to ISO instead of 'ddd MMM D'
-// insert calendar events command: custom date range > include the events from the end date (i.e. 2026-06-07 to 2026-06-09 should include events from jun 7,8, and 9)
-// insert calendar events command: Modal keyboard nav> allow keyboard selection of option 6 'custom range'
-// hotkey: add 'custom range' option to the bottom of the preset list. this option opens the calendar list modal for the custom range option. 
-// custom range bug: insert invalid start date, click 'fetch events' > type valid start date: DO NOT insert list immediately. allow user to modify either the start date or end date. in other words, if user adds invalid start date and/or end date and clicks fetch events, cancel the fetch events action until they click it again.
-// settings: add 'include time' toggle, default on, above 'time format'. when toggled off, events with time specified do not return the time component.
-// after inserting a calendar list, have cursor be at the end of the list (not the beginning)
-// add configure command that updates the user's setting preferences, in the same way done in date-list 
+// todo (Release 2)
+// hotkey: add 'custom range' option to the bottom of the preset list. this option opens the calendar list modal for the custom range option.
+// add configure command that updates the user's setting preferences, in the same way done in date-list
 
 import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, MarkdownView, MarkdownFileInfo, Modal, Notice, Plugin, TFile, moment as _m } from 'obsidian';
 import { execFile } from 'child_process';
@@ -32,8 +20,10 @@ const BACK = Symbol('back');
 // Calendar fetching via icalBuddy
 // -------------------------------------------------------------------
 
-interface CalEvent {
+export interface CalEvent {
 	start: Date;
+	/** Set only when the event spans into a different calendar day than `start`. */
+	end?: Date | null;
 	title: string;
 	allDay: boolean;
 }
@@ -52,39 +42,55 @@ function parseIcalBuddyOutput(stdout: string): CalEvent[] {
 	let title: string | null = null;
 	let dateTimeLine: string | null = null;
 
+	// Map prose date words (icalBuddy emits these for nearby days) to moment offsets.
+	const wordOffset: Record<string, number> = { today: 0, tomorrow: 1, yesterday: -1 };
+	const resolveDate = (word: string): MomentInstance => {
+		const offset = wordOffset[word.toLowerCase()];
+		return offset !== undefined
+			? moment().startOf('day').add(offset, 'days')
+			: moment(word, 'YYYY-MM-DD');
+	};
+	// Parse one half of a datetime line: "DATE at HH:MM", "DATE", or a bare "HH:MM".
+	const parsePart = (part: string): { date: string | null; time: string | null } => {
+		let m = part.match(/^(\S+)\s+at\s+(\d{1,2}:\d{2})$/);
+		if (m) return { date: m[1]!, time: m[2]! };
+		m = part.match(/^(\d{1,2}:\d{2})$/);
+		if (m) return { date: null, time: m[1]! };
+		m = part.match(/^(\S+)$/);
+		if (m) return { date: m[1]!, time: null };
+		return { date: null, time: null };
+	};
+	const toDateTime = (base: MomentInstance, time: string | null): Date => {
+		if (!time) return base.toDate();
+		const [h, mi] = time.split(':').map(Number);
+		return base.clone().hours(h ?? 0).minutes(mi ?? 0).seconds(0).toDate();
+	};
+
 	const flush = () => {
 		if (!title || dateTimeLine === null) return;
 		const raw = dateTimeLine.trim();
 
-		// Map prose date words to moment offsets
-		const wordOffset: Record<string, number> = { today: 0, tomorrow: 1, yesterday: -1 };
-		const atMatch    = raw.match(/^(\S+)\s+at\s+(\d{1,2}:\d{2})/);
-		const rangeMatch = raw.match(/^(\S+)\s+-\s+\S/);
-		const dayOnly    = raw.match(/^(\S+)$/);
+		const halves = raw.split(/\s+-\s+/);
+		const startPart = parsePart(halves[0] ?? '');
+		const endPart   = halves.length > 1 ? parsePart(halves[1]!) : null;
 
-		const datePart = (atMatch ?? rangeMatch ?? dayOnly)?.[1] ?? '';
-		const timePart = atMatch?.[2] ?? null;
+		if (!startPart.date) { title = null; dateTimeLine = null; return; }
+		const startBase = resolveDate(startPart.date);
+		if (!startBase.isValid()) { title = null; dateTimeLine = null; return; }
 
-		let base: MomentInstance;
-		const offset = wordOffset[datePart.toLowerCase()];
-		if (offset !== undefined) {
-			base = moment().startOf('day').add(offset, 'days');
-		} else {
-			base = moment(datePart, 'YYYY-MM-DD');
+		const allDay = !startPart.time;
+		const start = toDateTime(startBase, startPart.time);
+
+		// Record the end only when the event spans into a different calendar day.
+		let end: Date | null = null;
+		if (endPart && endPart.date) {
+			const endBase = resolveDate(endPart.date);
+			if (endBase.isValid() && !endBase.isSame(startBase, 'day')) {
+				end = toDateTime(endBase, endPart.time);
+			}
 		}
-		if (!base.isValid()) { title = null; dateTimeLine = null; return; }
 
-		let start: Date;
-		let allDay: boolean;
-		if (timePart) {
-			const [h, m] = timePart.split(':').map(Number);
-			start = base.clone().hours(h ?? 0).minutes(m ?? 0).seconds(0).toDate();
-			allDay = false;
-		} else {
-			start = base.toDate();
-			allDay = true;
-		}
-		events.push({ start, title, allDay });
+		events.push({ start, end, title, allDay });
 		title = null;
 		dateTimeLine = null;
 	};
@@ -110,6 +116,7 @@ const ANSI_RE = /\x1b\[[0-9;]*m/g;
 async function fetchEvents(start: Date, end: Date, excluded: string[], timeoutMs: number): Promise<CalEvent[]> {
 	const buddy = findIcalBuddy();
 	const startStr = moment(start).format('YYYY-MM-DD');
+	// icalBuddy's `to:` is inclusive of the given date, so pass the end date as-is.
 	const endStr   = moment(end).format('YYYY-MM-DD');
 
 	const args = ['-iep', 'title,datetime', '-df', '%Y-%m-%d', '-tf', '%H:%M', '-nc', '-b', '###EVT###'];
@@ -120,27 +127,36 @@ async function fetchEvents(start: Date, end: Date, excluded: string[], timeoutMs
 	return parseIcalBuddyOutput(stdout.replace(ANSI_RE, ''));
 }
 
-function formatEvents(events: CalEvent[], settings: CalendarEventsSettings): string {
-	if (events.length === 0) return '(no events found)';
-	return events.map((e) => {
-		const m = moment(e.start);
-		let datePart = '';
-		if (settings.includeDate) {
-			const dateStr = m.format(settings.dateFormat || 'ddd MMM D');
-			const aliasStr = settings.wikiLinksAlias ? m.format(settings.wikiLinksAlias) : null;
-			datePart = settings.wikiLinks
-				? (aliasStr ? `[[${dateStr}|${aliasStr}]]` : `[[${dateStr}]]`)
-				: dateStr;
-		}
-		let timeStr = '';
-		if (!e.allDay) {
-			const formatted = m.format(settings.timeFormat || 'HH:mm');
+export function formatEvent(e: CalEvent, settings: CalendarEventsSettings): string {
+	const renderDate = (d: Date): string => {
+		const m = moment(d);
+		const dateStr = m.format(settings.dateFormat || 'YYYY-MM-DD');
+		const aliasStr = settings.wikiLinksAlias ? m.format(settings.wikiLinksAlias) : null;
+		return settings.wikiLinks
+			? (aliasStr ? `[[${dateStr}|${aliasStr}]]` : `[[${dateStr}]]`)
+			: dateStr;
+	};
+
+	let datePart = '';
+	let timeStr = '';
+	if (e.end) {
+		// Multi-day event: show the date span and omit times.
+		if (settings.includeDate) datePart = `${renderDate(e.start)} – ${renderDate(e.end)}`;
+	} else {
+		if (settings.includeDate) datePart = renderDate(e.start);
+		if (!e.allDay && settings.includeTime) {
+			const formatted = moment(e.start).format(settings.timeFormat || 'HH:mm');
 			timeStr = settings.includeDate ? (settings.timeSeparator || ' ') + formatted : formatted;
 		}
-		const hasPrecedingContent = datePart !== '' || timeStr !== '';
-		const titleSep = hasPrecedingContent ? (settings.titleSeparator || ' ') : '';
-		return `${settings.prefix}${datePart}${timeStr}${titleSep}${e.title}`;
-	}).join('\n');
+	}
+	const hasPrecedingContent = datePart !== '' || timeStr !== '';
+	const titleSep = hasPrecedingContent ? (settings.titleSeparator || ' ') : '';
+	return `${settings.prefix}${datePart}${timeStr}${titleSep}${e.title}`;
+}
+
+function formatEvents(events: CalEvent[], settings: CalendarEventsSettings): string {
+	if (events.length === 0) return '(no events found)';
+	return events.map((e) => formatEvent(e, settings)).join('\n');
 }
 
 // -------------------------------------------------------------------
@@ -154,9 +170,17 @@ interface RangePreset {
 	end: Date;
 }
 
-function buildPresets(): RangePreset[] {
+function buildPresets(weekStart: number): RangePreset[] {
 	const now = moment();
 	const toDate = (m: MomentInstance) => m.toDate();
+
+	// Compute the week boundaries relative to the user's chosen first day.
+	const offsetToWeekStart = (now.day() - weekStart + 7) % 7;
+	const thisWeekStart = now.clone().startOf('day').subtract(offsetToWeekStart, 'days');
+	const thisWeekEnd   = thisWeekStart.clone().add(6, 'days').endOf('day');
+	const nextWeekStart = thisWeekStart.clone().add(7, 'days');
+	const nextWeekEnd   = nextWeekStart.clone().add(6, 'days').endOf('day');
+
 	return [
 		{
 			name: 'Today',
@@ -172,15 +196,15 @@ function buildPresets(): RangePreset[] {
 		},
 		{
 			name: 'This week',
-			label: `${now.clone().startOf('isoWeek').format('MMM D')} – ${now.clone().endOf('isoWeek').format('MMM D')}`,
-			start: toDate(now.clone().startOf('isoWeek')),
-			end:   toDate(now.clone().endOf('isoWeek')),
+			label: `${thisWeekStart.format('MMM D')} – ${thisWeekEnd.format('MMM D')}`,
+			start: toDate(thisWeekStart),
+			end:   toDate(thisWeekEnd),
 		},
 		{
 			name: 'Next week',
-			label: `${now.clone().add(1,'weeks').startOf('isoWeek').format('MMM D')} – ${now.clone().add(1,'weeks').endOf('isoWeek').format('MMM D')}`,
-			start: toDate(now.clone().add(1,'weeks').startOf('isoWeek')),
-			end:   toDate(now.clone().add(1,'weeks').endOf('isoWeek')),
+			label: `${nextWeekStart.format('MMM D')} – ${nextWeekEnd.format('MMM D')}`,
+			start: toDate(nextWeekStart),
+			end:   toDate(nextWeekEnd),
 		},
 		{
 			name: 'This month',
@@ -218,7 +242,7 @@ class CalendarEventsSuggest extends EditorSuggest<RangePreset> {
 
 	getSuggestions(context: EditorSuggestContext): RangePreset[] {
 		const q = context.query.toLowerCase().trim();
-		const presets = buildPresets();
+		const presets = buildPresets(this.plugin.settings.firstDayOfWeek);
 		if (!q) return presets;
 		return presets.filter(p => p.name.toLowerCase().includes(q));
 	}
@@ -239,7 +263,9 @@ class CalendarEventsSuggest extends EditorSuggest<RangePreset> {
 		const notice = new Notice('Fetching calendar events…', 0);
 		fetchEvents(preset.start, preset.end, excluded, timeoutMs).then(events => {
 			notice.hide();
-			editor.replaceRange(formatEvents(events, this.plugin.settings), cursor);
+			const text = formatEvents(events, this.plugin.settings);
+			editor.replaceRange(text, cursor);
+			editor.setCursor(endOfInsertedText(cursor, text));
 		}).catch((err: any) => {
 			notice.hide();
 			console.error('Calendar Events plugin error:', err);
@@ -256,7 +282,7 @@ class RangeModal extends Modal {
 	private resolve: (value: { start: Date; end: Date } | typeof BACK) => void;
 	private confirmed = false;
 
-	constructor(app: App, resolve: (value: { start: Date; end: Date } | typeof BACK) => void) {
+	constructor(app: App, private weekStart: number, resolve: (value: { start: Date; end: Date } | typeof BACK) => void) {
 		super(app);
 		this.resolve = resolve;
 	}
@@ -272,7 +298,7 @@ class RangeModal extends Modal {
 
 		contentEl.createEl('p', { text: 'Pick a date range to fetch events for.', cls: 'cal-events-instructions' });
 
-		const presets = buildPresets();
+		const presets = buildPresets(this.weekStart);
 		const btns: HTMLButtonElement[] = [];
 
 		const confirm = (start: Date, end: Date) => {
@@ -323,12 +349,17 @@ class RangeModal extends Modal {
 			inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitCustom(); })
 		);
 
-		customBtn.addEventListener('click', () => {
+		const openCustom = () => {
 			customSection.classList.remove('cal-events-hidden');
 			startInput.focus();
-		});
+		};
+		customBtn.addEventListener('click', openCustom);
 
 		this.containerEl.addEventListener('keydown', (e: KeyboardEvent) => {
+			// Let the user type freely in the custom date fields.
+			if (activeDocument.activeElement instanceof HTMLInputElement) return;
+
+			const customIdx = presets.length;
 			const focused = btns.findIndex(b => b === activeDocument.activeElement);
 			if (e.key === 'ArrowDown') {
 				e.preventDefault();
@@ -336,13 +367,20 @@ class RangeModal extends Modal {
 			} else if (e.key === 'ArrowUp') {
 				e.preventDefault();
 				btns[(focused - 1 + btns.length) % btns.length]?.focus();
-			} else if (e.key === 'Enter' && focused >= 0 && focused < presets.length) {
+			} else if (e.key === 'Enter' && focused >= 0) {
 				e.preventDefault();
-				const p = presets[focused]!;
-				confirm(p.start, p.end);
+				if (focused === customIdx) {
+					openCustom();
+				} else {
+					const p = presets[focused]!;
+					confirm(p.start, p.end);
+				}
 			} else {
 				const idx = parseInt(e.key) - 1;
-				if (!isNaN(idx) && idx >= 0 && idx < presets.length) {
+				if (idx === customIdx) {
+					e.preventDefault();
+					openCustom();
+				} else if (!isNaN(idx) && idx >= 0 && idx < presets.length) {
 					e.preventDefault();
 					const p = presets[idx]!;
 					confirm(p.start, p.end);
@@ -362,6 +400,13 @@ class RangeModal extends Modal {
 // -------------------------------------------------------------------
 // Helpers
 // -------------------------------------------------------------------
+
+function endOfInsertedText(start: EditorPosition, text: string): EditorPosition {
+	const lines = text.split('\n');
+	return lines.length === 1
+		? { line: start.line, ch: start.ch + text.length }
+		: { line: start.line + lines.length - 1, ch: lines[lines.length - 1]!.length };
+}
 
 function friendlyError(err: any): string {
 	if (err.code === 'ENOENT') return 'icalBuddy not found. Install with: brew install ical-buddy';
@@ -388,7 +433,7 @@ export default class CalendarEventsPlugin extends Plugin {
 			name: 'Insert events',
 			editorCallback: async (editor: Editor, _ctx: MarkdownView | MarkdownFileInfo) => {
 				const range = await new Promise<{ start: Date; end: Date } | typeof BACK>((resolve) =>
-					new RangeModal(this.app, resolve).open()
+					new RangeModal(this.app, this.settings.firstDayOfWeek, resolve).open()
 				);
 
 				if (range === BACK) return;
