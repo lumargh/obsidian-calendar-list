@@ -125,6 +125,11 @@
 	height: 18px;
 }
 
+.cal-events-disabled {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
 .cal-events-settings-output-preview {
 	font-family: var(--font-monospace);
 	font-size: var(--font-smaller);

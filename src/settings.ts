@@ -58,7 +58,7 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 			if (previewEl) previewEl.setText(sampleEvents.map(e => formatEvent(e, s)).join('\n'));
 		};
 
-		new Setting(containerEl).setName('Calendar List Settings').setHeading();
+		new Setting(containerEl).setName('Configuration').setHeading();
 
 		new Setting(containerEl)
 			.setName('Inline trigger')
@@ -116,6 +116,9 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 
 		const includeDate = s.includeDate;
 		const includeTime = s.includeTime;
+		const setDisabled = (setting: Setting, disabled: boolean) => {
+			setting.settingEl.classList.toggle('cal-events-disabled', disabled);
+		};
 
 		new Setting(containerEl)
 			.setName('Include date')
@@ -141,7 +144,6 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 				text
 					.setPlaceholder('YYYY-MM-DD')
 					.setValue(s.dateFormat)
-					.setDisabled(!includeDate)
 					.onChange(async (value) => {
 						s.dateFormat = value;
 						preview.setText(value ? moment().format(value) : '');
@@ -149,21 +151,20 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 						updatePreview();
 					});
 			});
-		dateFormatSetting.setDisabled(!includeDate);
+		setDisabled(dateFormatSetting, !includeDate);
 
 		const wikiLinksSetting = new Setting(containerEl)
 			.setName('Wikilinks')
 			.setDesc('Wrap the date in [[ ]] to link to a daily note.')
 			.addToggle(toggle => toggle
 				.setValue(s.wikiLinks)
-				.setDisabled(!includeDate)
 				.onChange(async (value) => {
 					s.wikiLinks = value;
 					await this.plugin.saveSettings();
 					updatePreview();
 				})
 			);
-		wikiLinksSetting.setDisabled(!includeDate);
+		setDisabled(wikiLinksSetting, !includeDate);
 
 		const aliasSetting = new Setting(containerEl)
 			.setName('Wikilink alias format')
@@ -177,7 +178,6 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 				text
 					.setPlaceholder('ddd MMM D')
 					.setValue(s.wikiLinksAlias)
-					.setDisabled(!includeDate)
 					.onChange(async (value) => {
 						s.wikiLinksAlias = value;
 						preview.setText(value ? moment().format(value) : '');
@@ -185,7 +185,7 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 						updatePreview();
 					});
 			});
-		aliasSetting.setDisabled(!includeDate);
+		setDisabled(aliasSetting, !includeDate);
 
 		containerEl.createEl('div', { cls: 'cal-events-settings-spacer' });
 
@@ -213,7 +213,6 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 				text
 					.setPlaceholder('HH:mm')
 					.setValue(s.timeFormat)
-					.setDisabled(!includeTime)
 					.onChange(async (value) => {
 						s.timeFormat = value;
 						preview.setText(value ? moment().format(value) : '');
@@ -221,7 +220,7 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 						updatePreview();
 					});
 			});
-		timeFormatSetting.setDisabled(!includeTime);
+		setDisabled(timeFormatSetting, !includeTime);
 
 		const sepSetting = new Setting(containerEl)
 			.setName('Date–time separator')
@@ -229,14 +228,13 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 			.addText(text => text
 				.setPlaceholder('e.g. `, `')
 				.setValue(s.timeSeparator)
-				.setDisabled(!includeDate || !includeTime)
 				.onChange(async (value) => {
 					s.timeSeparator = value;
 					await this.plugin.saveSettings();
 					updatePreview();
 				})
 			);
-		sepSetting.setDisabled(!includeDate || !includeTime);
+		setDisabled(sepSetting, !includeDate || !includeTime);
 
 		new Setting(containerEl).setName('List format').setHeading();
 
