@@ -1,6 +1,8 @@
 // todo (Release 2)
+// add next month to preset insert options
+// add configure button to insert modal that updates the user's setting preferences, in the same way done in date-list
+// Add calendar popup to custom range date input fields
 // hotkey: add 'custom range' option to the bottom of the preset list. this option opens the calendar list modal for the custom range option.
-// add configure command that updates the user's setting preferences, in the same way done in date-list
 
 import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, MarkdownView, MarkdownFileInfo, Modal, Notice, Plugin, TFile, moment as _m } from 'obsidian';
 import { execFile } from 'child_process';
@@ -15,6 +17,83 @@ type MomentFactory = { (): MomentInstance; (inp: string, fmt?: string | string[]
 const moment = _m as unknown as MomentFactory;
 
 const BACK = Symbol('back');
+
+type DurationUnit = 'days' | 'weeks' | 'months' | 'years';
+
+// -------------------------------------------------------------------
+// Date parser (ported from the date-list plugin)
+// -------------------------------------------------------------------
+
+function startOfWeek(m: MomentInstance, firstDayOfWeek: number): MomentInstance {
+	const offset = (m.day() - firstDayOfWeek + 7) % 7;
+	return m.clone().startOf('day').subtract(offset, 'days');
+}
+
+function parseDate(input: string, firstDayOfWeek = 1): MomentInstance {
+	const s = input.trim().toLowerCase();
+	if (s === 'today') return moment();
+	if (s === 'tomorrow') return moment().add(1, 'days');
+	if (s === 'yesterday') return moment().subtract(1, 'days');
+
+	// +N or -N relative day offsets
+	const relative = s.match(/^([+-]\d+)$/);
+	if (relative) return moment().add(parseInt(relative[1]!), 'days');
+
+	const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+	// next <weekday|week|month|year>
+	const nextWord = s.match(/^next (\w+)$/);
+	if (nextWord) {
+		const word = nextWord[1]!;
+		const idx = weekdays.indexOf(word);
+		if (idx !== -1) {
+			const d = moment().day(idx);
+			return d.isSameOrBefore(moment(), 'day') ? d.add(7, 'days') : d;
+		}
+		if (word === 'week')  return startOfWeek(moment().add(1, 'weeks'), firstDayOfWeek);
+		if (word === 'month') return moment().add(1, 'months').startOf('month');
+		if (word === 'year')  return moment().add(1, 'years').startOf('year');
+	}
+
+	// last <weekday|week|month|year>
+	const lastWord = s.match(/^last (\w+)$/);
+	if (lastWord) {
+		const word = lastWord[1]!;
+		const idx = weekdays.indexOf(word);
+		if (idx !== -1) {
+			const d = moment().day(idx);
+			return d.isSameOrAfter(moment(), 'day') ? d.subtract(7, 'days') : d;
+		}
+		if (word === 'week')  return startOfWeek(moment().subtract(1, 'weeks'), firstDayOfWeek);
+		if (word === 'month') return moment().subtract(1, 'months').startOf('month');
+		if (word === 'year')  return moment().subtract(1, 'years').startOf('year');
+	}
+
+	// this week/month/year
+	const thisWord = s.match(/^this (week|month|year)$/);
+	if (thisWord) {
+		if (thisWord[1] === 'week')  return startOfWeek(moment(), firstDayOfWeek);
+		if (thisWord[1] === 'month') return moment().startOf('month');
+		if (thisWord[1] === 'year')  return moment().startOf('year');
+	}
+
+	// in N days/weeks/months/years
+	const inN = s.match(/^in (\d+) (days|weeks|months|years)$/);
+	if (inN) return moment().add(parseInt(inN[1]!), inN[2]! as DurationUnit);
+
+	// N days/weeks/months/years ago
+	const nAgo = s.match(/^(\d+) (days|weeks|months|years) ago$/);
+	if (nAgo) return moment().subtract(parseInt(nAgo[1]!), nAgo[2]! as DurationUnit);
+
+	return moment(input, [
+		'YYYY-MM-DD',
+		'MMMM D, YYYY', 'MMMM Do, YYYY', 'MMMM D YYYY', 'MMMM Do YYYY',
+		'MMM D, YYYY',  'MMM Do, YYYY',  'MMM D YYYY',  'MMM Do YYYY',
+		'MMMM D',       'MMMM Do',
+		'MMM D',        'MMM Do',
+		'M/D/YYYY',     'M/D',
+	]);
+}
 
 // -------------------------------------------------------------------
 // Calendar fetching via icalBuddy
@@ -241,10 +320,50 @@ class CalendarEventsSuggest extends EditorSuggest<RangePreset> {
 	}
 
 	getSuggestions(context: EditorSuggestContext): RangePreset[] {
-		const q = context.query.toLowerCase().trim();
-		const presets = buildPresets(this.plugin.settings.firstDayOfWeek);
+		const raw = context.query.trim();
+		const q = raw.toLowerCase();
+		const fdow = this.plugin.settings.firstDayOfWeek;
+		const presets = buildPresets(fdow);
 		if (!q) return presets;
-		return presets.filter(p => p.name.toLowerCase().includes(q));
+
+		const matches = presets.filter(p => p.name.toLowerCase().includes(q));
+
+		// If the query parses as a date (single day) or a range, offer a fetch
+		// entry built on the fly, ahead of any name-matched presets.
+		const typed = this.parseTypedRange(raw, fdow);
+		return typed ? [typed, ...matches] : matches;
+	}
+
+	private parseTypedRange(raw: string, fdow: number): RangePreset | null {
+		// Range separator requires surrounding spaces so it can't swallow the
+		// `-N` / `+N` relative offsets, which have none.
+		const parts = raw.split(/\s+(?:to|–|-)\s+/);
+
+		if (parts.length === 1) {
+			const m = parseDate(parts[0]!, fdow);
+			if (!m.isValid()) return null;
+			return {
+				name: 'Events',
+				label: m.format('ddd, MMM D'),
+				start: m.clone().startOf('day').toDate(),
+				end:   m.clone().endOf('day').toDate(),
+			};
+		}
+
+		if (parts.length === 2) {
+			let a = parseDate(parts[0]!, fdow);
+			let b = parseDate(parts[1]!, fdow);
+			if (!a.isValid() || !b.isValid()) return null;
+			if (b.isBefore(a)) [a, b] = [b, a];
+			return {
+				name: 'Events',
+				label: `${a.format('MMM D')} – ${b.format('MMM D')}`,
+				start: a.clone().startOf('day').toDate(),
+				end:   b.clone().endOf('day').toDate(),
+			};
+		}
+
+		return null;
 	}
 
 	renderSuggestion(preset: RangePreset, el: HTMLElement): void {
@@ -326,7 +445,7 @@ class RangeModal extends Modal {
 		const makeInput = (label: string, defaultVal: string) => {
 			customSection.createEl('p', { text: label, cls: 'cal-events-instructions' });
 			const input = customSection.createEl('input', { type: 'text', cls: 'cal-events-input' });
-			input.placeholder = 'YYYY-MM-DD';
+			input.placeholder = 'Today, next monday, 2026-06-10…';
 			input.value = defaultVal;
 			return input;
 		};
@@ -336,10 +455,11 @@ class RangeModal extends Modal {
 		const endInput   = makeInput('End date',   now.format('YYYY-MM-DD'));
 
 		const submitCustom = () => {
-			const sm = moment(startInput.value, 'YYYY-MM-DD');
-			const em = moment(endInput.value, 'YYYY-MM-DD');
+			let sm = parseDate(startInput.value, this.weekStart);
+			let em = parseDate(endInput.value, this.weekStart);
 			if (!sm.isValid()) { new Notice('Invalid start date.'); return; }
 			if (!em.isValid()) { new Notice('Invalid end date.'); return; }
+			if (em.isBefore(sm)) [sm, em] = [em, sm];
 			confirm(sm.startOf('day').toDate(), em.endOf('day').toDate());
 		};
 
