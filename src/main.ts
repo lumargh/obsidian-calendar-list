@@ -571,7 +571,6 @@ class PreviewModal extends Modal {
 		const actions = new Setting(this.contentEl);
 		actions.addButton(btn => btn
 			.setButtonText('Save format')
-			.setTooltip('Make this format your default')
 			.onClick(async () => {
 				Object.assign(this.plugin.settings, this.working);
 				await this.plugin.saveSettings();
