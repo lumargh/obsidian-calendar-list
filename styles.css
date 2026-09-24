@@ -194,3 +194,12 @@
 	font-size: var(--font-smaller);
 	white-space: nowrap;
 }
+
+.cal-events-preview {
+	max-height: 40vh;
+	overflow-y: auto;
+	padding: 8px 12px;
+	margin-bottom: 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}

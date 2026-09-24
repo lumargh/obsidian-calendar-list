@@ -3,7 +3,7 @@ import { App, PluginSettingTab, Setting, moment as _moment } from 'obsidian';
 type MomentFn = (input?: string | Date | number) => { format(fmt: string): string };
 const moment = _moment as unknown as MomentFn;
 import type CalendarEventsPlugin from './main';
-import { formatEvent, type CalEvent } from './main';
+import { formatEvents, type CalEvent } from './main';
 
 export interface CalendarEventsSettings {
 	suggestTrigger: string;
@@ -19,6 +19,7 @@ export interface CalendarEventsSettings {
 	wikiLinksAlias: string;
 	prefix: string;
 	titleSeparator: string;
+	groupByDate: boolean;
 }
 
 export const DEFAULT_SETTINGS: CalendarEventsSettings = {
@@ -35,6 +36,7 @@ export const DEFAULT_SETTINGS: CalendarEventsSettings = {
 	wikiLinksAlias: '',
 	prefix: '- ',
 	titleSeparator: ' — ',
+	groupByDate: false,
 };
 
 export class CalendarEventsSettingTab extends PluginSettingTab {
@@ -53,9 +55,10 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 			{ start: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 17, 0, 0), title: 'Team meeting', allDay: false },
 			{ start: new Date(now.getFullYear(), now.getMonth(), now.getDate()), title: 'Holiday', allDay: true },
 			{ start: new Date(now.getFullYear(), now.getMonth(), now.getDate()), end: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2), title: 'Conference', allDay: true },
+			{ start: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9, 30, 0), title: 'Dentist', allDay: false },
 		];
 		const updatePreview = () => {
-			if (previewEl) previewEl.setText(sampleEvents.map(e => formatEvent(e, s)).join('\n'));
+			if (previewEl) previewEl.setText(formatEvents(sampleEvents, s));
 		};
 
 		new Setting(containerEl).setName('Configuration').setHeading();
@@ -112,157 +115,10 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 				})
 			);
 
-		new Setting(containerEl).setName('Date & time format').setHeading();
-
-		const includeDate = s.includeDate;
-		const includeTime = s.includeTime;
-		const setDisabled = (setting: Setting, disabled: boolean) => {
-			setting.settingEl.classList.toggle('cal-events-disabled', disabled);
-		};
-
-		new Setting(containerEl)
-			.setName('Include date')
-			.setDesc('Add the date to each event line. When off, only the time is shown for timed events.')
-			.addToggle(toggle => toggle
-				.setValue(s.includeDate)
-				.onChange(async (value) => {
-					s.includeDate = value;
-					await this.plugin.saveSettings();
-					this.display();
-				})
-			);
-
-		const dateFormatSetting = new Setting(containerEl)
-			.setName('Date format')
-			.setDesc('Format the date portion')
-			.addText(text => {
-				text.inputEl.parentElement!.addClass('cal-events-settings-has-preview');
-				const preview = text.inputEl.parentElement!.createEl('div', {
-					cls: 'cal-events-settings-preview',
-					text: s.dateFormat ? moment().format(s.dateFormat) : '',
-				});
-				text
-					.setPlaceholder('YYYY-MM-DD')
-					.setValue(s.dateFormat)
-					.onChange(async (value) => {
-						s.dateFormat = value;
-						preview.setText(value ? moment().format(value) : '');
-						await this.plugin.saveSettings();
-						updatePreview();
-					});
-			});
-		setDisabled(dateFormatSetting, !includeDate);
-
-		const wikiLinksSetting = new Setting(containerEl)
-			.setName('Wikilinks')
-			.setDesc('Wrap the date in [[ ]] to link to a daily note.')
-			.addToggle(toggle => toggle
-				.setValue(s.wikiLinks)
-				.onChange(async (value) => {
-					s.wikiLinks = value;
-					await this.plugin.saveSettings();
-					updatePreview();
-				})
-			);
-		setDisabled(wikiLinksSetting, !includeDate);
-
-		const aliasSetting = new Setting(containerEl)
-			.setName('Wikilink alias format')
-			.setDesc('Display text inside the wikilink. Leave blank for no alias: [[date]]. With a value: [[date|alias]].')
-			.addText(text => {
-				text.inputEl.parentElement!.addClass('cal-events-settings-has-preview');
-				const preview = text.inputEl.parentElement!.createEl('div', {
-					cls: 'cal-events-settings-preview',
-					text: s.wikiLinksAlias ? moment().format(s.wikiLinksAlias) : '',
-				});
-				text
-					.setPlaceholder('ddd MMM D')
-					.setValue(s.wikiLinksAlias)
-					.onChange(async (value) => {
-						s.wikiLinksAlias = value;
-						preview.setText(value ? moment().format(value) : '');
-						await this.plugin.saveSettings();
-						updatePreview();
-					});
-			});
-		setDisabled(aliasSetting, !includeDate);
-
-		containerEl.createEl('div', { cls: 'cal-events-settings-spacer' });
-
-		new Setting(containerEl)
-			.setName('Include time')
-			.setDesc('Add the time to timed events. When off, the time is never shown.')
-			.addToggle(toggle => toggle
-				.setValue(s.includeTime)
-				.onChange(async (value) => {
-					s.includeTime = value;
-					await this.plugin.saveSettings();
-					this.display();
-				})
-			);
-
-		const timeFormatSetting = new Setting(containerEl)
-			.setName('Time format')
-			.setDesc('Format for the time portion (when applicable).')
-			.addText(text => {
-				text.inputEl.parentElement!.addClass('cal-events-settings-has-preview');
-				const preview = text.inputEl.parentElement!.createEl('div', {
-					cls: 'cal-events-settings-preview',
-					text: s.timeFormat ? moment().format(s.timeFormat) : '',
-				});
-				text
-					.setPlaceholder('HH:mm')
-					.setValue(s.timeFormat)
-					.onChange(async (value) => {
-						s.timeFormat = value;
-						preview.setText(value ? moment().format(value) : '');
-						await this.plugin.saveSettings();
-						updatePreview();
-					});
-			});
-		setDisabled(timeFormatSetting, !includeTime);
-
-		const sepSetting = new Setting(containerEl)
-			.setName('Date–time separator')
-			.setDesc('Text between the date and time for timed events. Defaults to a space if left blank.')
-			.addText(text => text
-				.setPlaceholder('e.g. `, `')
-				.setValue(s.timeSeparator)
-				.onChange(async (value) => {
-					s.timeSeparator = value;
-					await this.plugin.saveSettings();
-					updatePreview();
-				})
-			);
-		setDisabled(sepSetting, !includeDate || !includeTime);
-
-		new Setting(containerEl).setName('List format').setHeading();
-
-		new Setting(containerEl)
-			.setName('Prefix')
-			.setDesc('Text prepended to each event line.')
-			.addText(text => text
-				.setPlaceholder('e.g. `-` or `- [ ] `')
-				.setValue(s.prefix)
-				.onChange(async (value) => {
-					s.prefix = value;
-					await this.plugin.saveSettings();
-					updatePreview();
-				})
-			);
-
-		new Setting(containerEl)
-			.setName('Title separator')
-			.setDesc('Text between the date/time and the event title.')
-			.addText(text => text
-				.setPlaceholder('e.g. `- `')
-				.setValue(s.titleSeparator)
-				.onChange(async (value) => {
-					s.titleSeparator = value;
-					await this.plugin.saveSettings();
-					updatePreview();
-				})
-			);
+		renderFormatControls(containerEl, s, async (structural) => {
+			await this.plugin.saveSettings();
+			if (structural) this.display(); else updatePreview();
+		});
 
 		new Setting(containerEl).setName('Output preview').setHeading();
 		previewEl = containerEl.createEl('div', { cls: 'cal-events-settings-output-preview' });
@@ -337,4 +193,162 @@ export class CalendarEventsSettingTab extends PluginSettingTab {
 			}
 		}
 	}
+}
+
+// Format controls shared by the settings tab and the Insert with preview modal.
+// `onChange(true)` means a toggle changed which controls are enabled, so the caller should re-render.
+export function renderFormatControls(el: HTMLElement, s: CalendarEventsSettings, onChange: (structural: boolean) => Promise<void>): void {
+	new Setting(el).setName('Date & time format').setHeading();
+
+	const includeDate = s.includeDate;
+	const includeTime = s.includeTime;
+	const setDisabled = (setting: Setting, disabled: boolean) => {
+		setting.settingEl.classList.toggle('cal-events-disabled', disabled);
+	};
+
+	new Setting(el)
+		.setName('Include date')
+		.setDesc('Add the date to each event line. When off, only the time is shown for timed events.')
+		.addToggle(toggle => toggle
+			.setValue(s.includeDate)
+			.onChange(async (value) => {
+				s.includeDate = value;
+				await onChange(true);
+			})
+		);
+
+	const dateFormatSetting = new Setting(el)
+		.setName('Date format')
+		.setDesc('Format the date portion')
+		.addText(text => {
+			text.inputEl.parentElement!.addClass('cal-events-settings-has-preview');
+			const preview = text.inputEl.parentElement!.createEl('div', {
+				cls: 'cal-events-settings-preview',
+				text: s.dateFormat ? moment().format(s.dateFormat) : '',
+			});
+			text
+				.setPlaceholder('YYYY-MM-DD')
+				.setValue(s.dateFormat)
+				.onChange(async (value) => {
+					s.dateFormat = value;
+					preview.setText(value ? moment().format(value) : '');
+					await onChange(false);
+				});
+		});
+	setDisabled(dateFormatSetting, !includeDate);
+
+	const wikiLinksSetting = new Setting(el)
+		.setName('Wikilinks')
+		.setDesc('Wrap the date in [[ ]] to link to a daily note.')
+		.addToggle(toggle => toggle
+			.setValue(s.wikiLinks)
+			.onChange(async (value) => {
+				s.wikiLinks = value;
+				await onChange(false);
+			})
+		);
+	setDisabled(wikiLinksSetting, !includeDate);
+
+	const aliasSetting = new Setting(el)
+		.setName('Wikilink alias format')
+		.setDesc('Display text inside the wikilink. Leave blank for no alias: [[date]]. With a value: [[date|alias]].')
+		.addText(text => {
+			text.inputEl.parentElement!.addClass('cal-events-settings-has-preview');
+			const preview = text.inputEl.parentElement!.createEl('div', {
+				cls: 'cal-events-settings-preview',
+				text: s.wikiLinksAlias ? moment().format(s.wikiLinksAlias) : '',
+			});
+			text
+				.setPlaceholder('ddd MMM D')
+				.setValue(s.wikiLinksAlias)
+				.onChange(async (value) => {
+					s.wikiLinksAlias = value;
+					preview.setText(value ? moment().format(value) : '');
+					await onChange(false);
+				});
+		});
+	setDisabled(aliasSetting, !includeDate);
+
+	el.createEl('div', { cls: 'cal-events-settings-spacer' });
+
+	new Setting(el)
+		.setName('Include time')
+		.setDesc('Add the time to timed events. When off, the time is never shown.')
+		.addToggle(toggle => toggle
+			.setValue(s.includeTime)
+			.onChange(async (value) => {
+				s.includeTime = value;
+				await onChange(true);
+			})
+		);
+
+	const timeFormatSetting = new Setting(el)
+		.setName('Time format')
+		.setDesc('Format for the time portion (when applicable).')
+		.addText(text => {
+			text.inputEl.parentElement!.addClass('cal-events-settings-has-preview');
+			const preview = text.inputEl.parentElement!.createEl('div', {
+				cls: 'cal-events-settings-preview',
+				text: s.timeFormat ? moment().format(s.timeFormat) : '',
+			});
+			text
+				.setPlaceholder('HH:mm')
+				.setValue(s.timeFormat)
+				.onChange(async (value) => {
+					s.timeFormat = value;
+					preview.setText(value ? moment().format(value) : '');
+					await onChange(false);
+				});
+		});
+	setDisabled(timeFormatSetting, !includeTime);
+
+	const sepSetting = new Setting(el)
+		.setName('Date–time separator')
+		.setDesc('Text between the date and time for timed events. Defaults to a space if left blank.')
+		.addText(text => text
+			.setPlaceholder('e.g. `, `')
+			.setValue(s.timeSeparator)
+			.onChange(async (value) => {
+				s.timeSeparator = value;
+				await onChange(false);
+			})
+		);
+	setDisabled(sepSetting, !includeDate || !includeTime);
+
+	new Setting(el).setName('List format').setHeading();
+
+	new Setting(el)
+		.setName('Prefix')
+		.setDesc('Text prepended to each event line.')
+		.addText(text => text
+			.setPlaceholder('e.g. `-` or `- [ ] `')
+			.setValue(s.prefix)
+			.onChange(async (value) => {
+				s.prefix = value;
+				await onChange(false);
+			})
+		);
+
+	new Setting(el)
+		.setName('Title separator')
+		.setDesc('Text between the date/time and the event title.')
+		.addText(text => text
+			.setPlaceholder('e.g. `- `')
+			.setValue(s.titleSeparator)
+			.onChange(async (value) => {
+				s.titleSeparator = value;
+				await onChange(false);
+			})
+		);
+
+	new Setting(el)
+		.setName('Group by date')
+		.setDesc('Show each date once as a bold line above its events, instead of on every line.')
+		.addToggle(toggle => toggle
+			.setValue(s.groupByDate)
+			.onChange(async (value) => {
+				s.groupByDate = value;
+				await onChange(false);
+			})
+		);
 }

@@ -1,14 +1,15 @@
 // todo (Release 2)
+// make sure that when inserting events from command, events are inserted at the cursor and not at the top of the page.
 // add next month to preset insert options
 // add configure button to insert modal that updates the user's setting preferences, in the same way done in date-list
 // Add calendar popup to custom range date input fields
 // hotkey: add 'custom range' option to the bottom of the preset list. this option opens the calendar list modal for the custom range option.
 
-import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, MarkdownView, MarkdownFileInfo, Modal, Notice, Plugin, TFile, moment as _m } from 'obsidian';
+import { App, Component, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, MarkdownRenderer, MarkdownView, MarkdownFileInfo, Modal, Notice, Plugin, Setting, TFile, moment as _m } from 'obsidian';
 import { execFile } from 'child_process';
 import { existsSync } from 'fs';
 import { promisify } from 'util';
-import { CalendarEventsSettings, DEFAULT_SETTINGS, CalendarEventsSettingTab } from './settings';
+import { CalendarEventsSettings, DEFAULT_SETTINGS, CalendarEventsSettingTab, renderFormatControls } from './settings';
 
 const execFileAsync = promisify(execFile);
 
@@ -206,23 +207,24 @@ async function fetchEvents(start: Date, end: Date, excluded: string[], timeoutMs
 	return parseIcalBuddyOutput(stdout.replace(ANSI_RE, ''));
 }
 
+function renderDate(d: Date, settings: CalendarEventsSettings): string {
+	const m = moment(d);
+	const dateStr = m.format(settings.dateFormat || 'YYYY-MM-DD');
+	const aliasStr = settings.wikiLinksAlias ? m.format(settings.wikiLinksAlias) : null;
+	return settings.wikiLinks
+		? (aliasStr ? `[[${dateStr}|${aliasStr}]]` : `[[${dateStr}]]`)
+		: dateStr;
+}
+
 export function formatEvent(e: CalEvent, settings: CalendarEventsSettings): string {
-	const renderDate = (d: Date): string => {
-		const m = moment(d);
-		const dateStr = m.format(settings.dateFormat || 'YYYY-MM-DD');
-		const aliasStr = settings.wikiLinksAlias ? m.format(settings.wikiLinksAlias) : null;
-		return settings.wikiLinks
-			? (aliasStr ? `[[${dateStr}|${aliasStr}]]` : `[[${dateStr}]]`)
-			: dateStr;
-	};
 
 	let datePart = '';
 	let timeStr = '';
 	if (e.end) {
 		// Multi-day event: show the date span and omit times.
-		if (settings.includeDate) datePart = `${renderDate(e.start)} – ${renderDate(e.end)}`;
+		if (settings.includeDate) datePart = `${renderDate(e.start, settings)} – ${renderDate(e.end, settings)}`;
 	} else {
-		if (settings.includeDate) datePart = renderDate(e.start);
+		if (settings.includeDate) datePart = renderDate(e.start, settings);
 		if (!e.allDay && settings.includeTime) {
 			const formatted = moment(e.start).format(settings.timeFormat || 'HH:mm');
 			timeStr = settings.includeDate ? (settings.timeSeparator || ' ') + formatted : formatted;
@@ -233,9 +235,21 @@ export function formatEvent(e: CalEvent, settings: CalendarEventsSettings): stri
 	return `${settings.prefix}${datePart}${timeStr}${titleSep}${e.title}`;
 }
 
-function formatEvents(events: CalEvent[], settings: CalendarEventsSettings): string {
+export function formatEvents(events: CalEvent[], settings: CalendarEventsSettings): string {
 	if (events.length === 0) return '(no events found)';
-	return events.map((e) => formatEvent(e, settings)).join('\n');
+	if (!settings.groupByDate) return events.map((e) => formatEvent(e, settings)).join('\n');
+
+	// One bold date line per day; multi-day events keep their span since it adds information.
+	const groups = new Map<string, CalEvent[]>();
+	for (const e of events) {
+		const key = moment(e.start).format('YYYY-MM-DD');
+		groups.set(key, [...(groups.get(key) ?? []), e]);
+	}
+	const lineSettings = { ...settings, includeDate: false };
+	return [...groups.values()].map((group) => [
+		`**${renderDate(group[0]!.start, settings)}**`,
+		...group.map((e) => formatEvent(e, e.end ? settings : lineSettings)),
+	].join('\n')).join('\n\n');
 }
 
 // -------------------------------------------------------------------
@@ -518,6 +532,72 @@ class RangeModal extends Modal {
 }
 
 // -------------------------------------------------------------------
+// Preview Modal
+// -------------------------------------------------------------------
+
+class PreviewModal extends Modal {
+	// Edits apply to this insert only until "Save format" copies them to the plugin settings.
+	private working: CalendarEventsSettings;
+	private renderer = new Component();
+
+	constructor(app: App, private plugin: CalendarEventsPlugin, private editor: Editor, private events: CalEvent[]) {
+		super(app);
+		this.working = { ...plugin.settings };
+	}
+
+	onOpen() {
+		this.modalEl.addClass('cal-events-modal');
+		this.titleEl.setText('Insert with preview');
+		this.renderer.load();
+
+		const previewEl = this.contentEl.createDiv({ cls: 'cal-events-preview' });
+		const controlsEl = this.contentEl.createDiv();
+		const sourcePath = this.app.workspace.getActiveFile()?.path ?? '';
+
+		const renderPreview = () => {
+			previewEl.empty();
+			void MarkdownRenderer.render(this.app, formatEvents(this.events, this.working), previewEl, sourcePath, this.renderer);
+		};
+		const renderControls = () => {
+			controlsEl.empty();
+			renderFormatControls(controlsEl, this.working, async (structural) => {
+				if (structural) renderControls();
+				renderPreview();
+			});
+		};
+		renderPreview();
+		renderControls();
+
+		const actions = new Setting(this.contentEl);
+		actions.addButton(btn => btn
+			.setButtonText('Save format')
+			.setTooltip('Make this format your default')
+			.onClick(async () => {
+				Object.assign(this.plugin.settings, this.working);
+				await this.plugin.saveSettings();
+				new Notice('Format saved.');
+			})
+		);
+		actions.addButton(btn => btn
+			.setButtonText('Insert')
+			.setCta()
+			.onClick(() => {
+				const text = formatEvents(this.events, this.working);
+				const from = this.editor.getCursor('from');
+				this.editor.replaceSelection(text);
+				this.editor.setCursor(endOfInsertedText(from, text));
+				this.close();
+			})
+		);
+	}
+
+	onClose() {
+		this.renderer.unload();
+		this.contentEl.empty();
+	}
+}
+
+// -------------------------------------------------------------------
 // Helpers
 // -------------------------------------------------------------------
 
@@ -550,28 +630,46 @@ export default class CalendarEventsPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'insert',
-			name: 'Insert events',
+			name: 'Quick insert',
 			editorCallback: async (editor: Editor, _ctx: MarkdownView | MarkdownFileInfo) => {
 				const range = await new Promise<{ start: Date; end: Date } | typeof BACK>((resolve) =>
 					new RangeModal(this.app, this.settings.firstDayOfWeek, resolve).open()
 				);
 
 				if (range === BACK) return;
-
-				const { excludedCalendars, timeoutMs } = this.settings;
-				const excluded = excludedCalendars.split(',').map(s => s.trim()).filter(Boolean);
-				const notice = new Notice('Fetching calendar events…', 0);
-				try {
-					const events = await fetchEvents(range.start, range.end, excluded, timeoutMs);
-					notice.hide();
-					editor.replaceSelection(formatEvents(events, this.settings));
-				} catch (err: any) {
-					notice.hide();
-					console.error('Calendar Events plugin error:', err);
-					new Notice(friendlyError(err));
-				}
+				const events = await this.fetchRange(range);
+				if (events) editor.replaceSelection(formatEvents(events, this.settings));
 			},
 		});
+
+		this.addCommand({
+			id: 'insert-preview',
+			name: 'Insert with preview',
+			editorCallback: async (editor: Editor, _ctx: MarkdownView | MarkdownFileInfo) => {
+				const range = await new Promise<{ start: Date; end: Date } | typeof BACK>((resolve) =>
+					new RangeModal(this.app, this.settings.firstDayOfWeek, resolve).open()
+				);
+				if (range === BACK) return;
+				const events = await this.fetchRange(range);
+				if (events) new PreviewModal(this.app, this, editor, events).open();
+			},
+		});
+	}
+
+	// Fetches events with a progress notice; returns null (after telling the user) on failure.
+	private async fetchRange(range: { start: Date; end: Date }): Promise<CalEvent[] | null> {
+		const { excludedCalendars, timeoutMs } = this.settings;
+		const excluded = excludedCalendars.split(',').map(s => s.trim()).filter(Boolean);
+		const notice = new Notice('Fetching calendar events…', 0);
+		try {
+			return await fetchEvents(range.start, range.end, excluded, timeoutMs);
+		} catch (err: any) {
+			console.error('Calendar Events plugin error:', err);
+			new Notice(friendlyError(err));
+			return null;
+		} finally {
+			notice.hide();
+		}
 	}
 
 	onunload() {}

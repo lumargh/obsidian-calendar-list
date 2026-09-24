@@ -29,9 +29,12 @@ Type `))` (or your configured trigger) anywhere in a note to open a range picker
 
 ---
 
-### Insert Calendar Events command
+### Commands
 
-Open the command palette and run **Calendar List: Insert calendar events**. The same five presets appear in a modal — click or press the matching number to fetch and insert immediately.
+Open the command palette and run either command. The same five presets appear in a modal — click or press the matching number to fetch events.
+
+- **Calendar List: Quick insert** inserts the events immediately using your saved format.
+- **Calendar List: Insert with preview** shows the rendered events with the formatting controls underneath. Adjust the format, then click **Insert**. Changes apply to that insert only, unless you click **Save format** to make them your default.
 
 Need a custom window? Choose **Custom…** to enter a specific start and end date.
 
@@ -43,13 +46,14 @@ Everything about the output is configurable in Settings → Calendar List:
 
 | Setting | Default | Description |
 |---|---|---|
-| Date format | `ddd MMM D` | Moment.js format for the date portion |
+| Date format | `YYYY-MM-DD` | Moment.js format for the date portion |
 | Wiki links | Off | Wrap the date in `[[ ]]` to link to a daily note |
 | Wiki link alias | _(blank)_ | If set, produces `[[date\|alias]]` |
 | Time format | `HH:mm` | Format for the time portion |
 | Date–time separator | `, ` | Text between date and time |
 | Prefix | `- ` | Text before each event line |
 | Title separator | ` — ` | Text between the date/time and event title |
+| Group by date | Off | Show each date once as a bold line above its events |
 
 A date format guide with common tokens is included at the bottom of the settings page.
 
